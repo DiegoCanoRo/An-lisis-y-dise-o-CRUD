@@ -9,141 +9,234 @@ public class Agenda {
     private static final String USER = "usuario1";
     private static final String PASSWORD = "superpassword";
 
+   /**
+ * Agrega una nueva persona a la base de datos junto con sus números de
+ * teléfono y direcciones.
+ *
+ * @param nombre nombre de la persona
+ * @param direcciones lista de direcciones asociadas a la persona
+ * @param telefonos lista de teléfonos asociados a la persona
+ */
+public void agregarPersona(String nombre, ArrayList<String> direcciones, ArrayList<String> telefonos) {
+    //consulta sql para insertar una nueva persona (ya no incluye dirección)
+    String sqlPersona = "INSERT INTO Personas (nombre) VALUES (?)";
+
+    //para insertar los teléfonos de la persona
+    String sqlTelefono = "INSERT INTO Telefonos (personaId, telefono) VALUES (?, ?)";
+
+    //abre conexion con la base de datos
+    try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+         PreparedStatement psPersona = conn.prepareStatement(sqlPersona, Statement.RETURN_GENERATED_KEYS)) {
+
+        //se asigna el nombre al parámetro
+        psPersona.setString(1, nombre);
+        //ejecuta la inserción en la tabla personas
+        psPersona.executeUpdate();
+
+        //se obtiene el ID autogenerado para la persona insertada
+        ResultSet rs = psPersona.getGeneratedKeys();
+        int personaId = 0;
+        if (rs.next()) {
+            personaId = rs.getInt(1);
+        }
+
+        //prepara la sentencia para agregar los números de teléfono
+        try (PreparedStatement psTel = conn.prepareStatement(sqlTelefono)) {
+            for (String tel : telefonos) {
+                psTel.setInt(1, personaId);
+                psTel.setString(2, tel);
+                psTel.executeUpdate();
+            }
+        }
+
+        //se agregan todas las direcciones usando el método existente
+        for (String dir : direcciones) {
+            agregarDireccion(personaId, dir);
+        }
+
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+}
+
     /**
-     * Agrega una nueva persona a la base de datos junto con sus números de
-     * teléfono.
+     * Agrega una nueva dirección a la base de datos y la asocia con una persona.
      *
-     * @param nombre
-     * @param direccion
-     * @param telefonos lista de teléfonos asociados a la persona
+     * @param personaId el identificador único de la persona
+     * @param direccion la dirección que se asignará a la persona
      */
-    public void agregarPersona(String nombre, String direccion, ArrayList<String> telefonos) {
-        //para insertar los datos de la persona
-        String sqlPersona = "INSERT INTO Personas (nombre, direccion) VALUES (?, ?)";
+    public void agregarDireccion(int personaId, String direccion) {
+        //consulta sql para insertar una nueva dirección
+        String sqlInsertDireccion = "INSERT INTO Direcciones (direccion) VALUES (?)";
+        //consulta sql para asociar la dirección a una persona en la tabla intermedia
+        String sqlInsertRelacion = "INSERT INTO PersonaDireccion (personaId, direccionId) VALUES (?, ?)";
 
-        //para insertar los telefonos de la persona
-        String sqlTelefono = "INSERT INTO Telefonos (personaId, telefono) VALUES (?, ?)";
+        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement psDir = conn.prepareStatement(sqlInsertDireccion, Statement.RETURN_GENERATED_KEYS)) {
 
-        //abre conexion con la base de datos
-        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD); PreparedStatement psPersona = conn.prepareStatement(sqlPersona, Statement.RETURN_GENERATED_KEYS)) {
+            //se asigna el valor de la dirección al parámetro
+            psDir.setString(1, direccion);
+            //se ejecuta la inserción en la tabla Direcciones
+            psDir.executeUpdate();
 
-            //se les asigna valores a los parametros
-            psPersona.setString(1, nombre);
-            psPersona.setString(2, direccion);
-            //ejecuta la inserción en la tabla personas
-            psPersona.executeUpdate();
-
-            //se obtiene el ID automatico para la persona insertada
-            ResultSet rs = psPersona.getGeneratedKeys();
-            int personaId = 0;
+            //se obtiene el id autogenerado de la dirección insertada
+            ResultSet rs = psDir.getGeneratedKeys();
+            int direccionId = 0;
             if (rs.next()) {
-                personaId = rs.getInt(1);
+                direccionId = rs.getInt(1);
             }
 
-            //prepara la sentencia para agregar los números de télefono de la persona
-            try (PreparedStatement psTel = conn.prepareStatement(sqlTelefono)) {
-                //recorre la lista de télefonos y los agrega a la base de datos
-                for (String tel : telefonos) {
-                    psTel.setInt(1, personaId);
-                    psTel.setString(2, tel);
-                    psTel.executeUpdate();
-                }
+            //se prepara la sentencia para insertar la relación persona-dirección
+            try (PreparedStatement psRel = conn.prepareStatement(sqlInsertRelacion)) {
+                psRel.setInt(1, personaId);
+                psRel.setInt(2, direccionId);
+                psRel.executeUpdate();
             }
 
-            //System.out.println("Persona agregada con éxito: " + nombre);
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
+
+   /**
+ * Consulta todas las personas registradas en la base de datos junto con sus
+ * teléfonos y direcciones.
+ *
+ * @return un ArrayList de objetos Persona con sus datos, teléfonos y direcciones
+ */
+public ArrayList<Persona> consultarPersonas() {
+    //esta lista almacenará las personas recuperadas de la base de datos
+    ArrayList<Persona> personas = new ArrayList<>();
+
+    //consulta sql para obtener todas las personas (ya no se trae la columna direccion)
+    String sqlPersonas = "SELECT id, nombre FROM Personas";
+    //consulta sql para obtener los teléfonos de una persona según su id
+    String sqlTelefonos = "SELECT telefono FROM Telefonos WHERE personaId = ?";
+    //consulta sql para obtener las direcciones de una persona mediante la tabla intermedia
+    String sqlDirecciones = "SELECT d.direccion FROM Direcciones d " +
+                            "INNER JOIN PersonaDireccion pd ON d.id = pd.direccionId " +
+                            "WHERE pd.personaId = ?";
+
+    //se abre la conexión a la base de datos y ejecuta la consulta de personas
+    try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+         Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery(sqlPersonas)) {
+
+        //se recorre el resultado de la consulta de personas
+        while (rs.next()) {
+            //se obtiene el id de la persona
+            int id = rs.getInt("id");
+            //se obtiene su nombre
+            String nombre = rs.getString("nombre");
+
+            //se crea un objeto Persona solo con id y nombre; direcciones y teléfonos se agregan abajo
+            Persona p = new Persona(id, nombre);
+
+            //se obtienen los teléfonos asociados a la persona
+            try (PreparedStatement psTel = conn.prepareStatement(sqlTelefonos)) {
+                psTel.setInt(1, id);
+                ResultSet rsTel = psTel.executeQuery();
+                while (rsTel.next()) {
+                    p.agregarTelefono(rsTel.getString("telefono"));
+                }
+            }
+
+            //se obtienen las direcciones asociadas a la persona
+            try (PreparedStatement psDir = conn.prepareStatement(sqlDirecciones)) {
+                psDir.setInt(1, id);
+                ResultSet rsDir = psDir.executeQuery();
+                while (rsDir.next()) {
+                    p.agregarDireccion(rsDir.getString("direccion"));
+                }
+            }
+
+            //se agrega la persona con sus datos completos a la lista
+            personas.add(p);
+        }
+
+    } catch (SQLException e) {
+        e.printStackTrace();
+    }
+
+    return personas;
+}
+
+    
+
     /**
-     * Consulta todas las personas registradas en la base de datos junto con sus
-     * teléfonos.
+     * Obtiene todas las direcciones asociadas a una persona en la base de datos.
      *
-     * @return un ArrayList de objetos Persona con sus datos y teléfonos
+     * @param personaId el identificador único de la persona
+     * @return una lista con las direcciones asociadas a la persona
      */
-    public ArrayList<Persona> consultarPersonas() {
-        //esta lista almacenara las personas recuperadas de la base de datos
-        ArrayList<Persona> personas = new ArrayList<>();
+    public ArrayList<String> obtenerDirecciones(int personaId) {
+        //esta lista almacenará las direcciones recuperadas de la base de datos
+        ArrayList<String> direcciones = new ArrayList<>();
 
-        //consulta sql para obtener a las personas y sus telefonos asignados a su
-        //id
-        String sqlPersonas = "SELECT * FROM Personas";
-        String sqlTelefonos = "SELECT telefono FROM Telefonos WHERE personaId = ?";
+        //consulta sql para obtener las direcciones relacionadas a la persona
+        String sql = "SELECT d.direccion FROM Direcciones d " +
+                     "INNER JOIN PersonaDireccion pd ON d.id = pd.direccionId " +
+                     "WHERE pd.personaId = ?";
 
-        //se abre la conexión a la base de datos y ejecuta la consulta
-        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sqlPersonas)) {
+        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            //se recorre el resultado de la consulta de personas
+            //se asigna el id de la persona al parámetro
+            ps.setInt(1, personaId);
+
+            //se ejecuta la consulta
+            ResultSet rs = ps.executeQuery();
+
+            //se recorren los resultados y se agregan a la lista
             while (rs.next()) {
-                //se obtiene el id de la persona
-                int id = rs.getInt("id");
-
-                //se obtiene su nombre
-                String nombre = rs.getString("nombre");
-
-                //su dirección
-                String direccion = rs.getString("direccion");
-
-                //se crea un objeto Persona con los datos obtnenidos
-                Persona p = new Persona(id, nombre, direccion);
-
-                //se prepara la sentencia para obtener los telefonos de esa persona
-                try (PreparedStatement psTel = conn.prepareStatement(sqlTelefonos)) {
-
-                    //se le asigna el id al parámetro
-                    psTel.setInt(1, id);
-
-                    //ejecuta la consulta de los teléfonos
-                    ResultSet rsTel = psTel.executeQuery();
-
-                    //recorre los resultados y agrega los teléfonos al objeto persona
-                    while (rsTel.next()) {
-                        p.agregarTelefono(rsTel.getString("telefono"));
-                    }
-                }
-
-                personas.add(p);
+                direcciones.add(rs.getString("direccion"));
             }
 
         } catch (SQLException e) {
             e.printStackTrace();
         }
 
-        return personas;
+        return direcciones;
     }
 
-    /**
-     * Modifica los datos de una persona
-     *
-     * @param id el identificador unico de la persona a modificar
-     * @param nuevoNombre el nuevo nombre que se asignara a la persona
-     * @param nuevaDireccion la nueva dirección que se asignara a la persona
-     */
-    public void modificarPersona(int id, String nuevoNombre, String nuevaDireccion) {
-        //consulta sql para actualizar los datos segun el id de la persona
-        String sql = "UPDATE Personas SET nombre = ?, direccion = ? WHERE id = ?";
 
-        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD); PreparedStatement ps = conn.prepareStatement(sql)) {
+/**
+ * Modifica los datos de una persona: actualiza su nombre y reemplaza todas sus
+ * direcciones por las nuevas proporcionadas.
+ *
+ * @param id el identificador único de la persona a modificar
+ * @param nuevoNombre el nuevo nombre que se asignará a la persona
+ * @param nuevasDirecciones la nueva lista de direcciones que reemplazará a las existentes
+ */
+public void modificarPersona(int id, String nuevoNombre, ArrayList<String> nuevasDirecciones) {
+    //consulta sql para actualizar solo el nombre de la persona
+    String sqlUpdatePersona = "UPDATE Personas SET nombre = ? WHERE id = ?";
+    //consulta sql para borrar todas las relaciones actuales persona-dirección
+    String sqlBorrarRelaciones = "DELETE FROM PersonaDireccion WHERE personaId = ?";
 
-            //asigna los valores a los parametros
-            ps.setString(1, nuevoNombre);
-            ps.setString(2, nuevaDireccion);
-            ps.setInt(3, id);
+    try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+         PreparedStatement psUpdate = conn.prepareStatement(sqlUpdatePersona);
+         PreparedStatement psBorrar = conn.prepareStatement(sqlBorrarRelaciones)) {
 
-            //ejecuta la actualización
-            ps.executeUpdate();
+        //actualizar nombre
+        psUpdate.setString(1, nuevoNombre);
+        psUpdate.setInt(2, id);
+        psUpdate.executeUpdate();
 
-//            int filas = ps.executeUpdate();
-//            if (filas > 0) {
-//                System.out.println("Persona modificada con exito ID: " + id);
-//            } else {
-//                System.out.println("No se encontró persona con ID: " + id);
-//            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+        //borrar relaciones de direcciones antiguas
+        psBorrar.setInt(1, id);
+        psBorrar.executeUpdate();
+
+        //insertar nuevas direcciones (se crean si no existían)
+        for (String dir : nuevasDirecciones) {
+            agregarDireccion(id, dir);
         }
+
+    } catch (SQLException e) {
+        e.printStackTrace();
     }
+}
 
     /**
      * Elimina una persona de la base de datos junto con sus teléfonos.

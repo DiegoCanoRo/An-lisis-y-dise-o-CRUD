@@ -6,21 +6,25 @@ public class Persona {
 
     private int id;
     private String nombre;
-    private String direccion;
+    private ArrayList<String> direcciones;
     private ArrayList<String> telefonos;
 
-    public Persona(int id, String nombre, String direccion) {
+    public Persona(int id, String nombre) {
         this.id = id;
         this.nombre = nombre;
-        this.direccion = direccion;
-        telefonos = new ArrayList<>();
+        this.direcciones = new ArrayList<>();
+        this.telefonos = new ArrayList<>();
+    }
+
+    public void agregarDireccion(String direccion) {
+        direcciones.add(direccion);
     }
 
     public void agregarTelefono(String numero) {
         telefonos.add(numero);
     }
 
-    //getters
+    // getters
     public String getNombre() {
         return nombre;
     }
@@ -29,20 +33,17 @@ public class Persona {
         return id;
     }
 
-    public String getDireccion() {
-        return direccion;
+    public ArrayList<String> getDirecciones() {
+        return direcciones;
     }
 
     public ArrayList<String> getTelefonos() {
         return telefonos;
     }
 
+    // setters
     public void setNombre(String nombre) {
         this.nombre = nombre;
     }
 
-    public void setDireccion(String Direccion) {
-        this.direccion = direccion;
-    }
-
-}//
+}

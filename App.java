@@ -61,52 +61,60 @@ public class App extends Application {
 
     //actualiza el panel de texto con la información de las tablas de la base
     //de datos
-    private void actualizarPanel() {
-        areaTexto.clear();
-        ArrayList<Persona> personas = agenda.consultarPersonas();
-        if (personas.isEmpty()) {
-            areaTexto.setText("No hay registros.");
-        } else {
-            for (Persona p : personas) {
-                areaTexto.appendText("ID: " + p.getId() + ", Nombre: " + p.getNombre()
-                        + ", Dirección: " + p.getDireccion() + "\n  Teléfonos: " + p.getTelefonos() + "\n\n");
-            }
+ private void actualizarPanel() {
+    areaTexto.clear();
+    ArrayList<Persona> personas = agenda.consultarPersonas();
+    if (personas.isEmpty()) {
+        areaTexto.setText("No hay registros.");
+    } else {
+        for (Persona p : personas) {
+            areaTexto.appendText("ID: " + p.getId() + ", Nombre: " + p.getNombre()
+                    + "\n  Direcciones: " + p.getDirecciones()
+                    + "\n  Teléfonos: " + p.getTelefonos() + "\n\n");
         }
     }
+}
+
 
     //pide ingresar los datos para agregar una persona en la base de datos
-    private void agregarPersona() {
-        TextInputDialog dialogNombre = new TextInputDialog();
-        dialogNombre.setHeaderText("Ingrese el nombre:");
-        Optional<String> nombre = dialogNombre.showAndWait();
+private void agregarPersona() {
+    TextInputDialog dialogNombre = new TextInputDialog();
+    dialogNombre.setHeaderText("Ingrese el nombre:");
+    Optional<String> nombre = dialogNombre.showAndWait();
 
-        if (nombre.isEmpty()) {
-            return;
-        }
-
-        TextInputDialog dialogDireccion = new TextInputDialog();
-        dialogDireccion.setHeaderText("Ingrese la dirección:");
-        Optional<String> direccion = dialogDireccion.showAndWait();
-        if (direccion.isEmpty()) {
-            return;
-        }
-
-        TextInputDialog dialogTelefonos = new TextInputDialog();
-        dialogTelefonos.setHeaderText("Ingrese los teléfonos separados por coma:");
-        Optional<String> telefonosStr = dialogTelefonos.showAndWait();
-        if (telefonosStr.isEmpty()) {
-            return;
-        }
-
-        String[] telArray = telefonosStr.get().split(",");
-        ArrayList<String> telefonos = new ArrayList<>();
-        for (String t : telArray) {
-            telefonos.add(t.trim());
-        }
-
-        agenda.agregarPersona(nombre.get(), direccion.get(), telefonos);
-        actualizarPanel();
+    if (nombre.isEmpty()) {
+        return;
     }
+
+    // pedir direcciones separadas por coma
+    TextInputDialog dialogDirecciones = new TextInputDialog();
+    dialogDirecciones.setHeaderText("Ingrese las direcciones separadas por coma:");
+    Optional<String> direccionesStr = dialogDirecciones.showAndWait();
+    if (direccionesStr.isEmpty()) {
+        return;
+    }
+
+    ArrayList<String> direcciones = new ArrayList<>();
+    for (String d : direccionesStr.get().split(",")) {
+        direcciones.add(d.trim());
+    }
+
+    TextInputDialog dialogTelefonos = new TextInputDialog();
+    dialogTelefonos.setHeaderText("Ingrese los teléfonos separados por coma:");
+    Optional<String> telefonosStr = dialogTelefonos.showAndWait();
+    if (telefonosStr.isEmpty()) {
+        return;
+    }
+
+    ArrayList<String> telefonos = new ArrayList<>();
+    for (String t : telefonosStr.get().split(",")) {
+        telefonos.add(t.trim());
+    }
+
+    agenda.agregarPersona(nombre.get(), direcciones, telefonos);
+    actualizarPanel();
+}
+
 
     //pide ingresar el ID de una persona para eliminarla de la base de datos
     private void eliminarPersona() {
@@ -132,58 +140,66 @@ public class App extends Application {
         }
     }
 
-    //pide el id para modificar los datos como el nombre, dirección y teléfonos
-    private void modificarPersona() {
-        TextInputDialog dialogId = new TextInputDialog();
-        dialogId.setHeaderText("Ingrese el ID de la persona a modificar:");
-        Optional<String> idStr = dialogId.showAndWait();
-        if (idStr.isEmpty()) {
+   //pide el id para modificar los datos como el nombre, direcciones y teléfonos
+private void modificarPersona() {
+    TextInputDialog dialogId = new TextInputDialog();
+    dialogId.setHeaderText("Ingrese el ID de la persona a modificar:");
+    Optional<String> idStr = dialogId.showAndWait();
+    if (idStr.isEmpty()) {
+        return;
+    }
+
+    try {
+        int id = Integer.parseInt(idStr.get());
+
+        if (!agenda.existePersona(id)) {
+            mostrarAlerta("No existe persona con ID: " + id);
             return;
         }
 
-        try {
-            int id = Integer.parseInt(idStr.get());
-
-            if (!agenda.existePersona(id)) {
-                mostrarAlerta("No existe persona con ID: " + id);
-                return;
-            }
-
-            TextInputDialog dialogNombre = new TextInputDialog();
-            dialogNombre.setHeaderText("Ingrese el nuevo nombre:");
-            Optional<String> nuevoNombre = dialogNombre.showAndWait();
-            if (nuevoNombre.isEmpty()) {
-                return;
-            }
-
-            TextInputDialog dialogDireccion = new TextInputDialog();
-            dialogDireccion.setHeaderText("Ingrese la nueva dirección:");
-            Optional<String> nuevaDireccion = dialogDireccion.showAndWait();
-            if (nuevaDireccion.isEmpty()) {
-                return;
-            }
-
-            TextInputDialog dialogTelefonos = new TextInputDialog();
-            dialogTelefonos.setHeaderText("Ingrese los nuevos teléfonos separados por coma:");
-            Optional<String> telefonosStr = dialogTelefonos.showAndWait();
-            if (telefonosStr.isEmpty()) {
-                return;
-            }
-
-            ArrayList<String> listaTelefonos = new ArrayList<>();
-            for (String t : telefonosStr.get().split(",")) {
-                listaTelefonos.add(t.trim());
-            }
-
-            agenda.modificarPersona(id, nuevoNombre.get(), nuevaDireccion.get());
-            agenda.modificarTelefonos(id, listaTelefonos);
-
-            actualizarPanel();
-
-        } catch (NumberFormatException e) {
-            mostrarAlerta("ID inválido");
+        TextInputDialog dialogNombre = new TextInputDialog();
+        dialogNombre.setHeaderText("Ingrese el nuevo nombre:");
+        Optional<String> nuevoNombre = dialogNombre.showAndWait();
+        if (nuevoNombre.isEmpty()) {
+            return;
         }
+
+        // pedir nuevas direcciones separadas por coma
+        TextInputDialog dialogDirecciones = new TextInputDialog();
+        dialogDirecciones.setHeaderText("Ingrese las nuevas direcciones separadas por coma:");
+        Optional<String> direccionesStr = dialogDirecciones.showAndWait();
+        if (direccionesStr.isEmpty()) {
+            return;
+        }
+
+        ArrayList<String> listaDirecciones = new ArrayList<>();
+        for (String d : direccionesStr.get().split(",")) {
+            listaDirecciones.add(d.trim());
+        }
+
+        TextInputDialog dialogTelefonos = new TextInputDialog();
+        dialogTelefonos.setHeaderText("Ingrese los nuevos teléfonos separados por coma:");
+        Optional<String> telefonosStr = dialogTelefonos.showAndWait();
+        if (telefonosStr.isEmpty()) {
+            return;
+        }
+
+        ArrayList<String> listaTelefonos = new ArrayList<>();
+        for (String t : telefonosStr.get().split(",")) {
+            listaTelefonos.add(t.trim());
+        }
+
+        // actualizar en la agenda
+        agenda.modificarPersona(id, nuevoNombre.get(), listaDirecciones);
+        agenda.modificarTelefonos(id, listaTelefonos);
+
+        actualizarPanel();
+
+    } catch (NumberFormatException e) {
+        mostrarAlerta("ID inválido");
     }
+}
+
 
     //muestra un mensaje de alerta para indicar errores o fallos al agregar, eliminar o modificar
     private void mostrarAlerta(String mensaje) {
